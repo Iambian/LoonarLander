@@ -113,6 +113,8 @@ void main(void) {
     int i,score;
 	uint8_t temp8,mopt,y;
 	kb_key_t k;
+	ti_var_t slot;
+	
 	/* Initialize system */
 	malloc(0);  //for linking purposes
 	gfx_Begin(gfx_8bpp);
@@ -127,7 +129,9 @@ void main(void) {
 	flame2right_spr = decompress(flame2right_compressed);
 	explosion_spr = gfx_MallocSprite(48,48);
 	memset(&file,0,sizeof(file));
-	
+	ti_CloseAll();
+	if (slot = ti_Open(filename,"r")) ti_Read(&file,sizeof(file),1,slot);
+	ti_CloseAll();
 	/* Initiate main game loop */
 	genstars();
 	mopt = 0;
@@ -168,8 +172,7 @@ void main(void) {
 		gfx_SwapDraw();
 	}
 	gfx_End();
-//	slot = ti_Open(filename,"w");
-//	ti_Write(&highscore,sizeof highscore, 1, slot);
+	if (slot = ti_Open(filename,"w")) ti_Write(&file,sizeof(file),1,slot);
 	ti_CloseAll();
 	return;
 }
