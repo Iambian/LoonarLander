@@ -84,6 +84,8 @@ void drawbg();
 void drawplayer();
 //---
 extern void landgen();
+extern void starttimer();
+extern int readtimer();
 void waitanykey();
 void keywait();
 void centerxtext(char* strobj,int y);
@@ -349,7 +351,8 @@ void genstars() {
 void drawbg() {
 	uint8_t y,i;
 	int x;
-	
+	starttimer();
+
 	drawstars();
 	landgen();
 		
@@ -367,6 +370,7 @@ void drawbg() {
 	gfx_SetTextXY(3,3);
 	gfx_PrintString("FUEL: ");
 	gfx_PrintUInt(fuel,4);
+	while (readtimer()!=1);  //WAIT UNTIL FRAME RUNS OUT
 }
 
 void drawplayer() {
