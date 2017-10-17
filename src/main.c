@@ -11,8 +11,6 @@
 
 #define TRANSPARENT_COLOR 0xF8
 #define GREETINGS_DIALOG_TEXT_COLOR 0xDF
-#define BULLET_TABLE_SIZE 512
-#define ENEMY_TABLE_SIZE 32
 
 #define GM_TITLE 0
 #define GM_OPENANIM 1
@@ -20,15 +18,14 @@
 #define GM_CLOSINGANIM 3
 #define GM_DYING 4
 #define GM_GAMEOVER 5
-#define GM_OUTPOSTSHOP 6
-#define GM_RETURNTOBASE 7
+
+#define TITLE_TEXT_COLOR 0xEF
+#define TITLE_SELECTED_COLOR 0xEC
 
 #define GMBOX_X (LCD_WIDTH/4)
 #define GMBOX_Y (LCD_HEIGHT/2-LCD_HEIGHT/8)
 #define GMBOX_W (LCD_WIDTH/2)
 #define GMBOX_H (LCD_HEIGHT/4)
-
-#define ACCELFACTOR ((int)(0.07*256))
 
 /* Standard headers (recommended) */
 #include <math.h>
@@ -47,8 +44,6 @@
 #include "gfx/sprites_gfx.h"
 #include "gfx/explosion_gfx.h"
 
-
-
 union fp16_8 {
 	int fp;
 	struct {
@@ -61,16 +56,23 @@ struct { unsigned int score[4]; uint8_t difficulty; uint8_t flags;} file;
 
 const char *gameoverdesc[] = {"Operator malfulction","The loon got spaced","Fuel seal failure","You had only one job"};
 const char *gameoverquit = "You quit the mission";
-const char *gameovertext = "Game Over";
-const char *successlanding = "Successful landing!";
-const char *getready = "Get ready!";
-const char *blankstr = "";
-const char *title1 = "LOONAR";
-const char *title2 = "LANDERS";
+const char *menuopts[] = {"Start Game","Change Difficulty","About","Quit Game"};
 const char *title3 = "[2nd] = Start game";
 const char *title4 = "[Mode] = Quit game";
-const char *title5 = "High score: ";
 const char *filename = "LOONLDAT";
+const char *credits[] = {
+	"Push LEFT/RIGHT to move the lander",
+	"Push the MODE key to quit",
+	"Land softly on the landing pad",
+	"or else the lander will explode.",
+	"",
+	"Program by Rodger 'Iambian' Weisman",
+	"Licensed under 2-Clause BSD License",
+	"",
+	"Report bugs here:",
+	"http://cemete.ch/p261077",
+};
+const char *difftext[] = {"Easy","Medium","Hard","Lowest Bidder"};
 
 /* Put your function prototypes here */
 
@@ -84,7 +86,8 @@ void drawplayer();
 void waitanykey();
 void keywait();
 void centerxtext(char* strobj,int y);
-void* decompress(void* cdata_in, int out_size);
+gfx_rletsprite_t* decompress(void* cdata_in);
+void drawtitle();
 //---
 
 /* Put all your globals here */
@@ -92,63 +95,72 @@ uint8_t surfaceheight[320];
 int stars[2*32];
 int landingpadx,landingpadw,fuel;
 
-gfx_sprite_t* looner_spr;
-gfx_sprite_t* lander_spr;
-gfx_sprite_t* flame1left_spr;
-gfx_sprite_t* flame2left_spr;
-gfx_sprite_t* flame1right_spr;
-gfx_sprite_t* flame2right_spr;
+gfx_rletsprite_t* looner_spr;
+gfx_rletsprite_t* lander_spr;
+gfx_rletsprite_t* flame1left_spr;
+gfx_rletsprite_t* flame2left_spr;
+gfx_rletsprite_t* flame1right_spr;
+gfx_rletsprite_t* flame2right_spr;
 gfx_sprite_t* explosion_spr;
-gfx_sprite_t* tmp_ptr;
 
 
 
 void main(void) {
-    int x,y,i,j,temp,subtimer;
-	int score;
-	uint8_t temp8;
+    int i,score;
+	uint8_t temp8,mopt,y;
 	kb_key_t k;
-	char* tmp_str;
 	/* Initialize system */
 	malloc(0);  //for linking purposes
 	gfx_Begin(gfx_8bpp);
 	gfx_SetDrawBuffer();
 	gfx_SetTransparentColor(TRANSPARENT_COLOR);
 	/* Initialize variables */
-	looner_spr = decompress(looner_compressed,looner_size);
-	lander_spr = decompress(lander_compressed,lander_size);
-	flame1left_spr = decompress(flame1left_compressed,flame1left_size);
-	flame2left_spr = decompress(flame2left_compressed,flame2left_size);
-	flame1right_spr = decompress(flame1right_compressed,flame1right_size);
-	flame2right_spr = decompress(flame2right_compressed,flame2right_size);
+	looner_spr = decompress(looner_compressed);
+	lander_spr = decompress(lander_compressed);
+	flame1left_spr = decompress(flame1left_compressed);
+	flame2left_spr = decompress(flame2left_compressed);
+	flame1right_spr = decompress(flame1right_compressed);
+	flame2right_spr = decompress(flame2right_compressed);
 	explosion_spr = gfx_MallocSprite(48,48);
 	memset(&file,0,sizeof(file));
 	
 	/* Initiate main game loop */
 	genstars();
+	mopt = 0;
 	while (1) {
 		kb_Scan();
 		k = kb_Data[1];
 		temp8 = randInt(0,1); //keep picking rand 
 		if (k&kb_2nd) {
-			score = gamemode();
-			if (score > file.score[file.difficulty]) file.score[file.difficulty] = score;
 			keywait();
-			//stuff.
-		} else if (k*kb_Mode) break;
+			if (!mopt) {
+				score = gamemode();
+				if (score > file.score[file.difficulty]) file.score[file.difficulty] = score;
+			} else if (mopt == 1) {
+				file.difficulty = (file.difficulty+1)&3;
+			} else if (mopt == 2) {
+				drawstars();
+				drawtitle();
+				for (i=0,y=100;i<10;i++,y+=12) centerxtext(credits[i],y);
+				gfx_SwapDraw();
+				waitanykey();
+			} else break;
+		} else if (k&kb_Mode) break;
+		k = kb_Data[7];
+		if (k&kb_Down) mopt++;
+		if (k&kb_Up) mopt--;
+		if (k) { 
+			mopt &= 3;
+			keywait();
+		}
 		drawstars();
-		gfx_SetTextFGColor(0xEF);
-		gfx_SetTextScale(4,4);
-		centerxtext(title1,5);
-		centerxtext(title2,40);
+		drawtitle();
 		gfx_SetTextScale(2,2);
-		centerxtext(title3,120);
-		centerxtext(title4,144);
-		gfx_SetTextScale(1,1);
-		gfx_SetTextXY(5,230);
-		gfx_PrintString(title5);
-		gfx_PrintInt(file.score[file.difficulty],6);
-		gfx_PrintStringXY(VERSION_INFO,290,230);
+		for (i=0,y=100;i<4;i++,y+=24) {
+			if (i==mopt) gfx_SetTextFGColor(TITLE_SELECTED_COLOR);
+			centerxtext(menuopts[i],y);
+			gfx_SetTextFGColor(TITLE_TEXT_COLOR);
+		}
 		gfx_SwapDraw();
 	}
 	gfx_End();
@@ -157,8 +169,13 @@ void main(void) {
 	ti_CloseAll();
 	return;
 }
-
-
+#define DMODES_WIDTH 4
+//                  grav, trst, xtol, ytol
+int16_t dmodes[] = {   7,   18,  256,-1024,   //easy
+					   7,   18,  192, -521,   //medium
+					   7,   18,   96, -192,   //hard
+					   7,   18,   64, -128,   //lowest bidder
+};
 //Returns score when the player quits or dies
 int gamemode() {
 	uint8_t timer,lc8;
@@ -169,18 +186,26 @@ int gamemode() {
 	int8_t disp;
 	int coly,colx;
 	uint8_t gamestate;
+	int ytol,xtol,xvariance;
 
 	curlevel = score = 0;
-	landingpadw = 50;
-	gravity.fp = (int) (0.03*256);
-	thrust.fp = (int) (0.07*256);
+	landingpadw = 60;
 	fuel = 999;
+	
+	gfx_SetTextScale(1,1);
+	lc8 = file.difficulty*DMODES_WIDTH;
+	gravity.fp = (int) dmodes[lc8+0];
+	thrust.fp = (int) dmodes[lc8+1];
+	xtol = (int) dmodes[lc8+2];
+	ytol = (int) dmodes[lc8+3];
+	
 	//Endless loop that never breaks. The main gameplay subloop contains
 	//a return to escape.
 	while (1){
 		//------------------------------------------------------------------
 		//GENERATE LEVEL
 		genstars();
+		xvariance = (file.difficulty==3)?2-randInt(0,4):0;
 		cury.p.ipart = 8;
 		startpoint = curx.p.ipart = (320-32)/2;
 		dx.fp = dy.fp = 0;
@@ -214,7 +239,7 @@ int gamemode() {
 			drawbg();
 			drawplayer();
 			drawdialogbox();
-			centerxtext((timer&8)?getready:blankstr,GMBOX_Y+25);
+			centerxtext((timer&8)?"Get ready!":"",GMBOX_Y+25);
 			gfx_SwapDraw();
 		}
 		//-----------------------------------------------------------------------------
@@ -227,6 +252,7 @@ int gamemode() {
 			//-- Moving the player and collision detection
 			k = kb_Data[7];       //Get player actions
 			dy.fp -= gravity.fp;  //always falling
+			dx.fp += xvariance;
 			if (k&kb_Right && fuel) {
 				dx.fp += thrust.fp;
 				dy.fp += thrust.fp>>1;
@@ -245,7 +271,7 @@ int gamemode() {
 			for (i=curx.p.ipart,lc8=32;lc8>0;i++,lc8--) {
 				if ((i>=0) && (i<320) && (coly>surfaceheight[i])) {
 					if ((curx.p.ipart>landingpadx) && (curx.p.ipart<(landingpadx+landingpadw-32))) {
-						if (dx.fp>64 || dx.fp<-64 || dy.fp < -192) {
+						if (dx.fp>xtol || dx.fp<(-xtol) || dy.fp < ytol) {
 							gamestate = GM_DYING;
 						} else {
 							gamestate = GM_CLOSINGANIM;
@@ -269,7 +295,7 @@ int gamemode() {
 				}
 				drawdialogbox();
 				centerxtext(gameoverdesc[randInt(0,3)],GMBOX_Y+15);
-				centerxtext(gameovertext,GMBOX_Y+35);
+				centerxtext("Game Over",GMBOX_Y+35);
 				gfx_SwapDraw();
 				waitanykey();
 				return score;
@@ -283,11 +309,11 @@ int gamemode() {
 			drawbg();
 			drawplayer();
 			drawdialogbox();
-			centerxtext(successlanding,GMBOX_Y+25);
+			centerxtext("Successful landing!",GMBOX_Y+25);
 			gfx_SwapDraw();
 		}
 		score += fuel;
-		fuel += 100;
+		fuel += 50*(5-file.difficulty);
 		curlevel++;
 		if (landingpadw>38) landingpadw--;
 	}
@@ -319,25 +345,26 @@ void drawbg() {
 	int x;
 	
 	drawstars();
+	gfx_SetColor(0xEF);
 	for (x=0;x<320;x++) {
 		y = surfaceheight[x];
-		gfx_SetColor(0xEF);
 		gfx_VertLine(x,y,240-y);
-		if ((x>landingpadx) && (x<(landingpadx+landingpadw))) {
-			gfx_SetColor(0xE4);
-			gfx_VertLine(x,y+1,3);
-		}
+	}
+	gfx_SetColor(0xE4);
+	for (i=landingpadw,x=landingpadx;i>0;i--,x++) {
+		y = surfaceheight[x];
+		gfx_VertLine(x,y+1,3);
 	}
 	gfx_SetTextFGColor(0xFE);
 	gfx_SetTextXY(3,3);
 	gfx_PrintString("FUEL: ");
-	gfx_PrintUInt(fuel,3);
+	gfx_PrintUInt(fuel,4);
 }
 
 void drawplayer() {
 	int x,y;
 	kb_key_t k;	
-	gfx_sprite_t* temp;
+	gfx_rletsprite_t* temp;
 	static uint8_t timer = 0;
 	
 	kb_Scan();
@@ -346,16 +373,16 @@ void drawplayer() {
 	timer++;
 	k = kb_Data[7];
 	
-	gfx_Sprite(looner_spr,x+6,y+7);
-	gfx_TransparentSprite(lander_spr,x,y); 
+	gfx_RLETSprite(looner_spr,x+6,y+7);
+	gfx_RLETSprite(lander_spr,x,y); 
 	
 	if (k & kb_Left) {
 		temp = (timer&1) ? flame1left_spr : flame2left_spr;
-		gfx_TransparentSprite(temp,x-5,y+21);
+		gfx_RLETSprite(temp,x-5,y+21);
 	}
 	if (k & kb_Right) {
 		temp = (timer&1) ? flame1right_spr : flame2right_spr;
-		gfx_TransparentSprite(temp,x+29,y+21);
+		gfx_RLETSprite(temp,x+29,y+21);
 	}
 	
 }
@@ -376,8 +403,24 @@ void centerxtext(char* strobj,int y) {
 	gfx_PrintStringXY(strobj,(LCD_WIDTH-gfx_GetStringWidth(strobj))/2,y);
 }
 
-void* decompress(void *cdata_in,int out_size) {
-	void *ptr = malloc(out_size);
-	dzx7_Turbo(cdata_in,ptr);
-	return ptr;
+void* decompress(void *cdata_in) {
+	gfx_sprite_t* baseimg;
+	baseimg = (void*) gfx_vbuffer;
+	dzx7_Turbo(cdata_in,baseimg);
+	return gfx_ConvertMallocRLETSprite(baseimg);
 }
+
+void drawtitle() {
+	gfx_SetTextFGColor(TITLE_TEXT_COLOR);
+	gfx_SetTextScale(4,4);
+	centerxtext("LOONAR",5);
+	centerxtext("LANDERS",40);
+	gfx_SetTextScale(1,1);
+	gfx_SetTextXY(5,230);
+	gfx_PrintString("High score (");
+	gfx_PrintString(difftext[file.difficulty]);
+	gfx_PrintString(") : ");
+	gfx_PrintInt(file.score[file.difficulty],6);
+	gfx_PrintStringXY(VERSION_INFO,290,230);
+}
+
