@@ -90,6 +90,7 @@ void centerxtext(char* strobj,int y);
 gfx_rletsprite_t* decompress(void* cdata_in);
 void drawtitle();
 //---
+void gameoverdialog(char* s);
 
 /* Put all your globals here */
 uint8_t surfaceheight[320];
@@ -172,10 +173,10 @@ void main(void) {
 }
 #define DMODES_WIDTH 4
 //                  grav, trst, xtol, ytol
-int16_t dmodes[] = {   7,   18,  256, -999,   //easy
-					   7,   18,  192, -400,   //medium
+int16_t dmodes[] = {   7,   18,  256, -888,   //easy
+					   7,   18,  192, -444,   //medium
 					   7,   18,   96, -192,   //hard
-					   7,   18,   64, -128,   //lowest bidder
+					   7,   18,   64,  -96,   //lowest bidder
 };
 //Returns score when the player quits or dies
 int gamemode() {
@@ -282,6 +283,12 @@ int gamemode() {
 					}
 				}
 			}
+			if (curx.p.ipart<-50 || curx.p.ipart > 370 || cury.p.ipart<-200) {
+				gameoverdialog("The loon flew the coop");
+				return score;
+			}
+			if (cury.p.ipart>240) gamestate = GM_DYING;
+			
 			if (gamestate == GM_CLOSINGANIM) break;
 			if (gamestate == GM_DYING) {
 				timer = 0;
@@ -294,11 +301,7 @@ int gamemode() {
 					}
 					gfx_SwapDraw();
 				}
-				drawdialogbox();
-				centerxtext(gameoverdesc[randInt(0,3)],GMBOX_Y+15);
-				centerxtext("Game Over",GMBOX_Y+35);
-				gfx_SwapDraw();
-				waitanykey();
+				gameoverdialog(gameoverdesc[randInt(0,3)]);
 				return score;
 			}
 			gfx_SwapDraw();
@@ -322,6 +325,7 @@ int gamemode() {
 
 void drawdialogbox() {
 	gfx_SetColor(0x08);  //xlibc dark blue
+	gfx_SetTextBGColor(0xFF);
 	gfx_FillRectangle(GMBOX_X,GMBOX_Y,GMBOX_W,GMBOX_H);
 	gfx_SetTextFGColor(GREETINGS_DIALOG_TEXT_COLOR);
 }
@@ -359,6 +363,7 @@ void drawbg() {
 //		gfx_HorizLine(landingpadx,surfaceheight[landingpadx]+1+i,landingpadw);
 //	}
 	gfx_SetTextFGColor(0xFE);
+	gfx_SetTextBGColor(0x00);
 	gfx_SetTextXY(3,3);
 	gfx_PrintString("FUEL: ");
 	gfx_PrintUInt(fuel,4);
@@ -415,6 +420,7 @@ void* decompress(void *cdata_in) {
 
 void drawtitle() {
 	gfx_SetTextFGColor(TITLE_TEXT_COLOR);
+	gfx_SetTextBGColor(0x00);
 	gfx_SetTextScale(4,4);
 	centerxtext("LOONAR",5);
 	centerxtext("LANDERS",40);
@@ -427,3 +433,10 @@ void drawtitle() {
 	gfx_PrintStringXY(VERSION_INFO,290,230);
 }
 
+void gameoverdialog(char* s) {
+	drawdialogbox();
+	centerxtext(s,GMBOX_Y+15);
+	centerxtext("Game Over",GMBOX_Y+35);
+	gfx_SwapDraw();
+	waitanykey();
+}

@@ -1,4 +1,5 @@
 XDEF _landgen
+
 XREF _surfaceheight
 XREF _landingpadx
 XREF _landingpadw
@@ -72,9 +73,4 @@ landgen_padsubloop:
 	;END
 	POP IX
 	RET
-
-
-
-
-
 
