@@ -83,6 +83,7 @@ void genstars();
 void drawbg();
 void drawplayer();
 //---
+extern void landgen();
 void waitanykey();
 void keywait();
 void centerxtext(char* strobj,int y);
@@ -132,7 +133,6 @@ void main(void) {
 		k = kb_Data[1];
 		temp8 = randInt(0,1); //keep picking rand 
 		if (k&kb_2nd) {
-			keywait();
 			if (!mopt) {
 				score = gamemode();
 				if (score > file.score[file.difficulty]) file.score[file.difficulty] = score;
@@ -145,6 +145,7 @@ void main(void) {
 				gfx_SwapDraw();
 				waitanykey();
 			} else break;
+			keywait();
 		} else if (k&kb_Mode) break;
 		k = kb_Data[7];
 		if (k&kb_Down) mopt++;
@@ -171,8 +172,8 @@ void main(void) {
 }
 #define DMODES_WIDTH 4
 //                  grav, trst, xtol, ytol
-int16_t dmodes[] = {   7,   18,  256,-1024,   //easy
-					   7,   18,  192, -521,   //medium
+int16_t dmodes[] = {   7,   18,  256, -999,   //easy
+					   7,   18,  192, -400,   //medium
 					   7,   18,   96, -192,   //hard
 					   7,   18,   64, -128,   //lowest bidder
 };
@@ -340,21 +341,23 @@ void genstars() {
 	}
 }
 
+
 void drawbg() {
 	uint8_t y,i;
 	int x;
 	
 	drawstars();
-	gfx_SetColor(0xEF);
-	for (x=0;x<320;x++) {
-		y = surfaceheight[x];
-		gfx_VertLine(x,y,240-y);
-	}
-	gfx_SetColor(0xE4);
-	for (i=landingpadw,x=landingpadx;i>0;i--,x++) {
-		y = surfaceheight[x];
-		gfx_VertLine(x,y+1,3);
-	}
+	landgen();
+		
+//	gfx_SetColor(0xEF);
+//	for (x=0;x<320;x++) {
+//		y = surfaceheight[x];
+//		gfx_VertLine(x,y,240-y);
+//	}
+//	gfx_SetColor(0xE4);
+//	for (i=0;i<3;i++) {
+//		gfx_HorizLine(landingpadx,surfaceheight[landingpadx]+1+i,landingpadw);
+//	}
 	gfx_SetTextFGColor(0xFE);
 	gfx_SetTextXY(3,3);
 	gfx_PrintString("FUEL: ");
