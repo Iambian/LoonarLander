@@ -50,9 +50,9 @@ union fp16_8 {
 		uint8_t fpart;
 		int16_t ipart;
 	} p;
-} curx,cury,dx,dy,gravity,thrust;
+} curx,cury,dx,dy,gravity,thrust,fptemp;
 
-struct { unsigned int score[4]; uint8_t difficulty; uint8_t flags;} file;
+struct { unsigned int score[4]; uint8_t difficulty; uint8_t flags; uint16_t shipsused[4]; } file;
 
 const char *gameoverdesc[] = {"Operator malfulction","The loon got spaced","Fuel seal failure","You had only one job"};
 const char *gameoverquit = "You quit the mission";
@@ -62,6 +62,7 @@ const char *title4 = "[Mode] = Quit game";
 const char *filename = "LOONLDAT";
 const char *credits[] = {
 	"Push LEFT/RIGHT to move the lander",
+	"Push DOWN to activate both thrusters",
 	"Push the MODE key to quit",
 	"Land softly on the landing pad",
 	"or else the lander will explode.",
@@ -98,6 +99,7 @@ void gameoverdialog(char* s);
 uint8_t surfaceheight[320];
 int stars[2*32];
 int landingpadx,landingpadw,fuel;
+uint16_t shipsused;
 
 gfx_rletsprite_t* looner_spr;
 gfx_rletsprite_t* lander_spr;
@@ -142,13 +144,16 @@ void main(void) {
 		if (k&kb_2nd) {
 			if (!mopt) {
 				score = gamemode();
-				if (score > file.score[file.difficulty]) file.score[file.difficulty] = score;
+				if (score > file.score[file.difficulty]) {
+					file.score[file.difficulty] = score;
+					file.shipsused[file.difficulty] = shipsused;
+				}
 			} else if (mopt == 1) {
 				file.difficulty = (file.difficulty+1)&3;
 			} else if (mopt == 2) {
 				drawstars();
 				drawtitle();
-				for (i=0,y=100;i<10;i++,y+=12) centerxtext(credits[i],y);
+				for (i=0,y=90;i<11;i++,y+=11) centerxtext(credits[i],y);
 				gfx_SwapDraw();
 				waitanykey();
 			} else break;
@@ -181,7 +186,7 @@ void main(void) {
 int16_t dmodes[] = {   7,   18,  256, -888,   //easy
 					   7,   18,  192, -444,   //medium
 					   7,   18,   96, -192,   //hard
-					   7,   18,   64,  -96,   //lowest bidder
+					   7,   24,   64,  -96,   //lowest bidder
 };
 //Returns score when the player quits or dies
 int gamemode() {
@@ -198,6 +203,7 @@ int gamemode() {
 	curlevel = score = 0;
 	landingpadw = 60;
 	fuel = 999;
+	shipsused = 0;
 	
 	gfx_SetTextScale(1,1);
 	lc8 = file.difficulty*DMODES_WIDTH;
@@ -206,13 +212,24 @@ int gamemode() {
 	xtol = (int) dmodes[lc8+2];
 	ytol = (int) dmodes[lc8+3];
 	
+	if (file.difficulty == 3) {
+			drawstars();
+			drawdialogbox();
+			centerxtext("Brave loon, you are",GMBOX_Y+5);
+			centerxtext("piloting the cheapest",GMBOX_Y+15);
+			centerxtext("most unreliable piece",GMBOX_Y+25);
+			centerxtext("of junk that money",GMBOX_Y+35);
+			centerxtext("can't buy. Good luck!",GMBOX_Y+45);
+			gfx_SwapDraw();		
+			waitanykey();
+	}
 	//Endless loop that never breaks. The main gameplay subloop contains
 	//a return to escape.
 	while (1){
 		//------------------------------------------------------------------
 		//GENERATE LEVEL
 		genstars();
-		xvariance = (file.difficulty==3)?2-randInt(0,4):0;
+		xvariance = (file.difficulty==3)?16-randInt(0,32):0;
 		cury.p.ipart = 8;
 		startpoint = curx.p.ipart = (320-32)/2;
 		dx.fp = dy.fp = 0;
@@ -240,13 +257,13 @@ int gamemode() {
 			}
 		}
 		//------------------------------------------------------------------
-		timer=64;
+		timer=40;
 		//OPEN ANIMATION
 		while (timer--) {
 			drawbg();
 			drawplayer();
 			drawdialogbox();
-			centerxtext((timer&8)?"Get ready!":"",GMBOX_Y+25);
+			centerxtext((timer&8)?"":"Get ready!",GMBOX_Y+25);
 			gfx_SwapDraw();
 		}
 		//-----------------------------------------------------------------------------
@@ -259,18 +276,22 @@ int gamemode() {
 			//-- Moving the player and collision detection
 			k = kb_Data[7];       //Get player actions
 			dy.fp -= gravity.fp;  //always falling
-			dx.fp += xvariance;
+			if (k&kb_Down) k |= kb_Left|kb_Right;
 			if (k&kb_Right && fuel) {
-				dx.fp += thrust.fp;
+				fptemp = thrust;
+				if (file.difficulty==3 && !randInt(0,4)) fptemp.fp = 0;
+				dx.fp += fptemp.fp;
 				dy.fp += thrust.fp>>1;
 				fuel--;
 			}
 			if (k&kb_Left && fuel) {
-				dx.fp -= thrust.fp;
+				fptemp = thrust;
+				if (file.difficulty==3 && !randInt(0,4)) fptemp.fp = 0;
+				dx.fp -= fptemp.fp;
 				dy.fp += thrust.fp>>1;
 				fuel--;
 			}
-			curx.fp -= dx.fp;
+			curx.fp -= dx.fp+xvariance;
 			cury.fp -= dy.fp;
 			coly = cury.p.ipart+31;
 			//main collision detection loop
@@ -312,8 +333,8 @@ int gamemode() {
 			gfx_SwapDraw();
 		}
 		//-----------------------------------------------------------------------------
-		timer=64;
 		//STAGE COMPLETED
+		timer = 16;
 		while (timer--) {
 			drawbg();
 			drawplayer();
@@ -321,10 +342,12 @@ int gamemode() {
 			centerxtext("Successful landing!",GMBOX_Y+25);
 			gfx_SwapDraw();
 		}
+		waitanykey();
 		score += fuel;
 		fuel += 50*(5-file.difficulty);
 		curlevel++;
 		if (landingpadw>38) landingpadw--;
+		shipsused++;
 	}
 }
 
@@ -390,7 +413,7 @@ void drawplayer() {
 	
 	gfx_RLETSprite(looner_spr,x+6,y+7);
 	gfx_RLETSprite(lander_spr,x,y); 
-	
+	if (k&kb_Down) k |= kb_Left|kb_Right;
 	if (k & kb_Left) {
 		temp = (timer&1) ? flame1left_spr : flame2left_spr;
 		gfx_RLETSprite(temp,x-5,y+21);
@@ -432,11 +455,14 @@ void drawtitle() {
 	centerxtext("LOONAR",5);
 	centerxtext("LANDERS",40);
 	gfx_SetTextScale(1,1);
-	gfx_SetTextXY(5,230);
+	gfx_SetTextXY(5,220);
 	gfx_PrintString("High score (");
 	gfx_PrintString(difftext[file.difficulty]);
 	gfx_PrintString(") : ");
-	gfx_PrintInt(file.score[file.difficulty],6);
+	gfx_PrintUInt(file.score[file.difficulty],7);
+	gfx_SetTextXY(5,230);
+	gfx_PrintString("Ships used: ");
+	gfx_PrintUInt(file.shipsused[file.difficulty],5);
 	gfx_PrintStringXY(VERSION_INFO,290,230);
 }
 
